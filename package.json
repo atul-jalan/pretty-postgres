@@ -1,0 +1,7 @@
+{
+    "name": "pretty-postgres",
+    "description": "A CLI tool for generating a clean, readable PostgreSQL schema file, simplifying database schema visualization and documentation.",
+    "version": "1.0.0",
+    "author": "Atul Jalan atuljalan17@gmail.com",
+    "license": "MIT"
+}
