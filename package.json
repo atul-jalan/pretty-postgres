@@ -1,7 +1,26 @@
 {
     "name": "pretty-postgres",
-    "description": "A CLI tool for generating a clean, readable PostgreSQL schema file, simplifying database schema visualization and documentation.",
     "version": "1.0.0",
+    "description": "A CLI tool for generating a clean, readable PostgreSQL schema file, simplifying database schema visualization and documentation.",
     "author": "Atul Jalan atuljalan17@gmail.com",
-    "license": "MIT"
+    "license": "MIT",
+    "bin": {
+        "pretty-postgres": "./dist/cli.js"
+    },
+    "scripts": {
+        "build": "tsc",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "dependencies": {
+        "pg": "^8.0.0"
+    },
+    "devDependencies": {
+        "@types/node": "^20.10.6",
+        "typescript": "^5.3.3"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/atul-jalan/pretty-postgres.git"
+    },
+    "homepage": "https://github.com/atul-jalan/pretty-postgres"
 }
