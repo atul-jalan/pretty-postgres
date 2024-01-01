@@ -1,5 +1,3 @@
-'<!DOCTYPE html>\n<html>\n<head>\n\t<style> .model, .enum { color: #C617C0; } .comment { color: #788fa7; } .tableName, .enumName { color: purple; } .columnType { color: purple; } .pre { background-color: #f6f9fc; overflow: auto; padding: 16px; padding-top: 0px; padding-bottom: 0px; } html, body, pre { margin: 0; font-family: monospace; } </style>\n</head>\n<body><pre class="pre">\n\n';
-
 const COLOR = {
     LIGHT: {
         backgroundColor: "#F6F9FC",
