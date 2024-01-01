@@ -63,7 +63,9 @@ function main(): void {
         }
 
         if (filename === null) {
-            console.log(`Writing schema to ${selectedFileName}.${filetype}.`);
+            console.log(
+                `Writing schema to ${selectedFileName}.${selectedFileType}.`,
+            );
             console.log(
                 "You can optionally specify a filename with the -filename or -f flag.",
             );
