@@ -1,6 +1,6 @@
 # Pretty Postgres
 
-A CLI tool for generating a clean, readable PostgreSQL schema file, simplifying database schema visualization and documentation.
+Generate beautiful, readable PostgreSQL schemas.
 
 ## Installation
 
@@ -15,5 +15,13 @@ npm install pretty-postgres --save-dev
 Run the cli command to generate a schema in the root of your project.
 
 ```
-npx pretty-postgres generate
+npx pretty-postgres generate -connection-string postgresql://username:password@host:port/db-name -filename output-file -filetype html
 ```
+
+### Options
+
+| Option               | Required    | Default value          | Aliases     | Description |
+| -------------------- | ----------- | ---------------------- | ----------- | ----------- |
+| `-connection-string` | Yes         | N/A                    | `-cs`       | A postgres connection string in the format `postgresql://USERNAME:PASSWORD@HOST:PORT/DB_NAME` |
+| `-filename`          | No          | pretty-postgres-schema | `-fn`       | The name of the outputted schema file. |
+| `-filetype`          | No          | html                   | `-ft`       | Either "txt" or "html". Choosing "txt" will produce a simplified and formatted schema file. "html" is recommended to produce the most powerful and beautiful schema files. |
