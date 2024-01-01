@@ -268,7 +268,7 @@ async function generate(
         sortedTables.forEach((table) => {
             const columns = schema[table];
 
-            let tableType = insertSpan("tableType", "model", fileType);
+            let tableType = insertSpan("tableType", "table", fileType);
             let tableName = insertSpan("tableName", table, fileType);
 
             schemaString += `${tableType} ${tableName} ${openCurlyBracket}\n`;
