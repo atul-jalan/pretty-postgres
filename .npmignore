@@ -2,6 +2,6 @@
 *
 
 # but not these files...
-!dist/
+!dist/*
 !package.json
 !README.md
