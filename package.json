@@ -1,6 +1,6 @@
 {
     "name": "pretty-postgres",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "description": "Generate beautiful, readable PostgreSQL schemas.",
     "author": "Atul Jalan atuljalan17@gmail.com",
     "license": "MIT",
