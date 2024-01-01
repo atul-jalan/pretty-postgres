@@ -22,6 +22,7 @@ npx pretty-postgres generate -connection-string postgresql://username:password@h
 
 | Option               | Required    | Default value          | Aliases     | Description |
 | -------------------- | ----------- | ---------------------- | ----------- | ----------- |
-| `-connection-string` | Yes         | N/A                    | `-cs`       | A postgres connection string in the format `postgresql://USERNAME:PASSWORD@HOST:PORT/DB_NAME` |
+| `-connection-string` | Yes         | N/A                    | `-cs`       | A postgres connection string* |
 | `-filename`          | No          | pretty-postgres-schema | `-fn`       | The name of the outputted schema file. |
 | `-filetype`          | No          | html                   | `-ft`       | Either "txt" or "html". Choosing "txt" will produce a simplified and formatted schema file. "html" is recommended to produce the most powerful and beautiful schema files. |
+*The connection string should be formatted as follows: `postgresql://USERNAME:PASSWORD@HOST:PORT/DB_NAME`
