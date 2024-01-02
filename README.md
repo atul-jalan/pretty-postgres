@@ -7,7 +7,7 @@ Generate beautiful, powerful PostgreSQL schema visualizations.
 Install `pretty-postgres` as a global dependency.
 
 ```bash
-npm install pretty-postgres --save-dev
+npm install pretty-postgres --global
 ```
 
 Alternatively, you can install `pretty-postgres` as a local dependency to your project.
