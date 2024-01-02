@@ -6,76 +6,108 @@ import {
     getFormattedDateTimeString,
     getHTMLStyles,
     getScript,
-    insertSpan,
+    splitString,
+    toggleThemeButton,
+    wrapElement,
+    wrapSpan,
 } from "./utils.js";
+import { columnsQuery, enumsQuery } from "./queries.js";
 
 type FileType = "txt" | "html";
 
+const TAB_LENGTH = 2;
 const COLUMN_PADDING = 2;
+const COMMENT_MAX_PRINT_WIDTH = 80;
 const DEFAULT_FILE_TYPE: FileType = "html";
 const DEFAULT_FILE_NAME = "pretty-postgres-schema";
+
+const ENUM_DATA_TYPE = "USER-DEFINED";
+
+const GENERATE_COMMAND_OPTIONS = {
+    CONNECTION_STRING: ["-connection-string", "-cs"],
+    FILENAME: ["-filename", "-fn"],
+    FILETYPE: ["-filetype", "-ft"],
+};
+
+const MODEL_TYPE_NAMES = {
+    TABLE: "table",
+    ENUM: "enum",
+};
+
+const FILETYPES = {
+    HTML: "html",
+    TXT: "txt",
+} as const;
+
+const TAB = " ".repeat(TAB_LENGTH);
+
+const FORMATTED_CURRENT_DATE = getFormattedDateTimeString(new Date());
+const CREATED_ON_COMMENT = `This file was generated on ${FORMATTED_CURRENT_DATE}.`;
 
 function main(): void {
     const command = process.argv[2];
 
-    if (command === "generate") {
-        const additionalArgs = process.argv.slice(3);
-
-        let connectionString: string | null = null;
-        let filename: string | null = null;
-        let filetype: FileType | null = null;
-
-        for (let i = 0; i < additionalArgs.length; i += 1) {
-            const arg = additionalArgs[i];
-
-            if (i === additionalArgs.length - 1) {
-                continue;
-            }
-
-            if (arg === "-connection-string" || arg === "-cs") {
-                connectionString = additionalArgs[i + 1];
-                i += 1;
-            } else if (arg === "-filename" || arg === "-fn") {
-                filename = additionalArgs[i + 1];
-                i += 1;
-            } else if (arg === "-filetype" || arg === "-ft") {
-                const inputtedFileType = additionalArgs[i + 1];
-                if (inputtedFileType === "html" || inputtedFileType === "txt") {
-                    filetype = inputtedFileType;
-                } else {
-                    console.log(
-                        `Error: ${inputtedFileType} is not a valid file type.`,
-                    );
-                    return;
-                }
-                i += 1;
-            }
-        }
-
-        const selectedFileName = filename || DEFAULT_FILE_NAME;
-        const selectedFileType = filetype || DEFAULT_FILE_TYPE;
-
-        if (connectionString === null) {
-            console.log(
-                "Error: you must provide a connection string with the -connection-string or -cs flag.",
-            );
-            return;
-        }
-
-        if (filename === null) {
-            console.log(
-                `Writing schema to ${selectedFileName}.${selectedFileType}.`,
-            );
-            console.log(
-                "You can optionally specify a filename with the -filename or -f flag.",
-            );
-        }
-
-        generate(connectionString, selectedFileName, selectedFileType);
-    } else {
-        console.log("Error: command not recognized.\n");
+    if (command !== "generate") {
+        console.error("Error: command not recognized.\n");
+        return;
     }
-    return;
+
+    const additionalArgs = process.argv.slice(3);
+
+    let connectionString: string | null = null;
+    let filename: string | null = null;
+    let filetype: FileType | null = null;
+
+    for (let i = 0; i < additionalArgs.length; i += 1) {
+        const arg = additionalArgs[i];
+
+        if (i === additionalArgs.length - 1) {
+            continue;
+        }
+
+        if (GENERATE_COMMAND_OPTIONS.CONNECTION_STRING.includes(arg)) {
+            connectionString = additionalArgs[i + 1];
+            i += 1;
+        } else if (GENERATE_COMMAND_OPTIONS.FILENAME.includes(arg)) {
+            filename = additionalArgs[i + 1];
+            i += 1;
+        } else if (GENERATE_COMMAND_OPTIONS.FILETYPE.includes(arg)) {
+            const inputtedFileType = additionalArgs[i + 1];
+            if (
+                inputtedFileType === FILETYPES.HTML ||
+                inputtedFileType === FILETYPES.TXT
+            ) {
+                filetype = inputtedFileType;
+            } else {
+                console.error(
+                    `Error: ${inputtedFileType} is not a valid file type.`,
+                );
+                return;
+            }
+            i += 1;
+        }
+    }
+
+    const selectedFileName = filename || DEFAULT_FILE_NAME;
+    const selectedFileType = filetype || DEFAULT_FILE_TYPE;
+
+    if (connectionString === null) {
+        console.error(
+            "Error: you must provide a connection string with the -connection-string or -cs flag.",
+        );
+        return;
+    }
+
+    if (filename === null) {
+        console.log(
+            `Writing schema to ${selectedFileName}.${selectedFileType}.`,
+        );
+        console.log(
+            `You can optionally specify a filename with the ${GENERATE_COMMAND_OPTIONS.FILENAME[0]} or ${GENERATE_COMMAND_OPTIONS.FILENAME[1]} flag.`,
+        );
+    }
+
+    generate(connectionString, selectedFileName, selectedFileType);
 }
 
 async function generate(
@@ -83,8 +115,25 @@ async function generate(
     filename: string,
     fileType: "txt" | "html",
 ): Promise<void> {
-    const openCurlyBracket = insertSpan("punctuation", "{", fileType);
-    const closeCurlyBracket = insertSpan("punctuation", "}", fileType);
+    function wrapSpanIfHTML(
+        content: Parameters<typeof wrapSpan>[0],
+        className: Parameters<typeof wrapSpan>[1],
+        tooltip?: Parameters<typeof wrapSpan>[2],
+    ) {
+        if (fileType === "html") {
+            return wrapSpan(content, className, tooltip);
+        }
+        return content;
+    }
+
+    function formatComment(text: string) {
+        return splitString(text, COMMENT_MAX_PRINT_WIDTH)
+            .map((line) => wrapSpanIfHTML(line, "comment"))
+            .join("\n");
+    }
+
+    const openCurlyBracket = wrapSpanIfHTML("{", "punctuation");
+    const closeCurlyBracket = wrapSpanIfHTML("}", "punctuation");
 
     const pool = new pg.Pool({
         connectionString: connectionString,
@@ -93,108 +142,42 @@ async function generate(
     const client = await pool.connect();
 
     try {
-        const columnsRes = await client.query(`
-        SELECT 
-            cols.table_name,
-            cols.column_name,
-            cols.data_type,
-            cols.udt_name,
-            cols.column_default,
-            cols.is_nullable,
-            tc.constraint_type,
-            CASE WHEN tc.constraint_type = 'FOREIGN KEY' 
-                THEN ccu.table_name
-            ELSE NULL
-            END AS foreign_key_table,
-            CASE WHEN tc.constraint_type = 'FOREIGN KEY' 
-                THEN ccu.column_name
-            ELSE NULL
-            END AS foreign_key_column,
-            CASE WHEN tc.constraint_type = 'FOREIGN KEY' 
-                THEN rc.delete_rule
-            ELSE NULL
-            END AS foreign_key_delete_rule,
-            CASE WHEN tc.constraint_type = 'FOREIGN KEY' 
-                THEN rc.update_rule
-            ELSE NULL
-            END AS foreign_key_update_rule
-        FROM 
-            information_schema.columns AS cols
-        LEFT JOIN 
-            information_schema.key_column_usage AS kcu 
-            ON cols.table_name = kcu.table_name 
-            AND cols.column_name = kcu.column_name 
-            AND cols.table_schema = kcu.table_schema
-        LEFT JOIN 
-            information_schema.table_constraints AS tc 
-            ON kcu.constraint_name = tc.constraint_name 
-            AND kcu.table_schema = tc.table_schema 
-            AND kcu.table_name = tc.table_name
-        LEFT JOIN 
-            information_schema.referential_constraints AS rc 
-            ON tc.constraint_name = rc.constraint_name 
-            AND tc.table_schema = rc.constraint_schema
-        LEFT JOIN 
-            information_schema.constraint_column_usage AS ccu
-            ON rc.constraint_name = ccu.constraint_name
-            AND rc.constraint_schema = ccu.constraint_schema
-        WHERE 
-            cols.table_schema = 'public';
-        `);
+        const columns = (await columnsQuery(client)).rows;
+        const enums = (await enumsQuery(client)).rows;
 
-        const enumsRes = await client.query(`
-        SELECT 
-            t.typname AS enum_name,
-            e.enumlabel AS enum_value
-        FROM pg_type t 
-        JOIN pg_enum e ON t.oid = e.enumtypid  
-        JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
-        WHERE n.nspname = 'public'
-        `);
-
-        // Process enums and their references
-        let enums: Record<string, any> = {};
-        let enumReferences: Record<string, any> = {};
-        columnsRes.rows.forEach(({ table_name, data_type, udt_name }) => {
-            if (data_type === "USER-DEFINED") {
-                if (!enums[udt_name]) {
-                    enums[udt_name] = [];
-                    enumReferences[udt_name] = new Set();
-                }
-                enumReferences[udt_name].add(table_name);
-            }
+        const enumsByName: Record<string, string[]> = {};
+        enums.forEach(({ enum_name, enum_values }) => {
+            enumsByName[enum_name] = enum_values;
         });
 
-        enumsRes.rows.forEach(({ enum_name, enum_value }) => {
-            enums[enum_name].push(enum_value);
+        let enumTableReferences: Record<string, Set<string>> = {};
+        columns.forEach(({ table_name, data_type, udt_name }) => {
+            if (data_type === ENUM_DATA_TYPE) {
+                if (!enumTableReferences[udt_name]) {
+                    enumTableReferences[udt_name] = new Set();
+                }
+                enumTableReferences[udt_name].add(table_name);
+            }
         });
 
         let schemaString = "";
 
         // Sort and add enums with comments
-        const sortedEnums = Object.keys(enums).sort();
-        sortedEnums.forEach((enumName) => {
-            const references = Array.from(enumReferences[enumName]);
-            let comment = insertSpan(
-                "comment",
+        const sortedEnumNames = Object.keys(enumsByName).sort();
+        sortedEnumNames.forEach((enumName) => {
+            const references = Array.from(enumTableReferences[enumName]);
+            const formattedComment = formatComment(
                 `-- Referenced in ${references.join(", ")}.`,
-                fileType,
             );
 
-            while (comment.length > 80) {
-                comment = comment.replace(/, [^,]*$/, ",\n--$&");
-            }
+            let tableType = wrapSpanIfHTML(MODEL_TYPE_NAMES.ENUM, "tableType");
+            let formattedEnumName = wrapSpanIfHTML(enumName, "tableName");
 
-            let tableType = insertSpan("tableType", "enum", fileType);
-
-            let formattedEnumName = insertSpan("tableName", enumName, fileType);
-
-            schemaString += `${comment}\n${tableType} ${formattedEnumName} ${openCurlyBracket}\n`;
-            enums[enumName].forEach((value: any) => {
-                schemaString += `  ${insertSpan(
-                    "columnName",
+            schemaString += `${formattedComment}\n${tableType} ${formattedEnumName} ${openCurlyBracket}\n`;
+            enumsByName[enumName].forEach((value: any) => {
+                schemaString += `${TAB}${wrapSpanIfHTML(
                     value,
-                    fileType,
+                    "columnName",
                 )}\n`;
             });
             schemaString += `${closeCurlyBracket}\n\n`;
@@ -202,30 +185,39 @@ async function generate(
 
         // Process columns with default values
         let schema: Record<string, any> = {};
-        columnsRes.rows.forEach(
-            ({
-                table_name,
-                column_name,
-                data_type,
-                udt_name,
-                column_default,
-                is_nullable,
-            }) => {
-                if (!schema[table_name]) {
-                    schema[table_name] = [];
+        columns
+            .sort((a, b) => {
+                if (a.is_nullable === "YES" && b.is_nullable === "NO") {
+                    return 1;
+                } else if (b.is_nullable === "YES" && a.is_nullable === "NO") {
+                    return -1;
                 }
-
-                const type =
-                    data_type === "USER-DEFINED" ? udt_name : data_type;
-
-                schema[table_name].push({
+                return 0;
+            })
+            .forEach(
+                ({
+                    table_name,
                     column_name,
-                    type,
+                    data_type,
+                    udt_name,
                     column_default,
                     is_nullable,
-                });
-            },
-        );
+                }) => {
+                    if (!schema[table_name]) {
+                        schema[table_name] = [];
+                    }
+
+                    const type =
+                        data_type === ENUM_DATA_TYPE ? udt_name : data_type;
+
+                    schema[table_name].push({
+                        column_name,
+                        type,
+                        column_default,
+                        is_nullable,
+                    });
+                },
+            );
 
         // Determine the longest column name and type for formatting
         let longestColumnName = 0;
@@ -244,21 +236,26 @@ async function generate(
                     column_default: string | null;
                     is_nullable: string;
                 }) => {
+                    // If the column is nullable, add 1 to the length for the
+                    // question mark.
                     const nullable = is_nullable === "YES";
                     const columnNameLength = nullable
                         ? column_name.length + 1
                         : column_name.length;
 
-                    if (columnNameLength > longestColumnName)
+                    if (columnNameLength > longestColumnName) {
                         longestColumnName = columnNameLength;
-                    if (type.length > longestColumnType)
+                    }
+                    if (type.length > longestColumnType) {
                         longestColumnType = type.length;
+                    }
                     if (
                         column_default &&
                         column_default.length > longestColumnDefault
-                    )
+                    ) {
                         longestColumnDefault =
                             column_default.length + "DEFAULT".length;
+                    }
                 },
             );
         }
@@ -268,8 +265,8 @@ async function generate(
         sortedTables.forEach((table) => {
             const columns = schema[table];
 
-            let tableType = insertSpan("tableType", "table", fileType);
-            let tableName = insertSpan("tableName", table, fileType);
+            let tableType = wrapSpanIfHTML(MODEL_TYPE_NAMES.TABLE, "tableType");
+            let tableName = wrapSpanIfHTML(table, "tableName");
 
             schemaString += `${tableType} ${tableName} ${openCurlyBracket}\n`;
             columns.forEach(
@@ -287,21 +284,19 @@ async function generate(
                     const nullable = is_nullable === "YES";
 
                     const formattedColumnNullable = nullable
-                        ? insertSpan(
-                              "columnProperty",
+                        ? wrapSpanIfHTML(
                               "?",
-                              fileType,
-                              "This column is nullable.",
+                              "columnProperty bold",
+                              `${column_name} is NULLABLE.`,
                           )
                         : "";
 
-                    let formattedColumnName = insertSpan(
-                        "columnName",
+                    let formattedColumnName = wrapSpanIfHTML(
                         `${column_name}${nullable ? "?" : ""}`.padEnd(
                             longestColumnName + COLUMN_PADDING,
                             " ",
                         ),
-                        fileType,
+                        "columnName",
                     );
 
                     formattedColumnName = formattedColumnName.replace(
@@ -309,72 +304,79 @@ async function generate(
                         formattedColumnNullable,
                     );
 
-                    const formattedColumnType = insertSpan(
-                        "columnType",
+                    const formattedColumnType = wrapSpanIfHTML(
                         type.padEnd(longestColumnType + COLUMN_PADDING, " "),
-                        fileType,
+                        "columnType",
                     );
 
                     let columnLine = `${formattedColumnName}${formattedColumnType}`;
 
                     if (column_default) {
-                        const columnDefault = insertSpan(
-                            "columnProperty",
+                        const columnDefault = wrapSpanIfHTML(
                             "DEFAULT",
-                            fileType,
+                            "columnProperty",
                         );
 
-                        const columnDefaultValue = insertSpan(
-                            "text",
+                        const columnDefaultValue = wrapSpanIfHTML(
                             column_default,
-                            fileType,
+                            "text",
                         );
 
-                        columnLine += ` ${columnDefault} ${columnDefaultValue}`;
+                        columnLine += `${columnDefault} ${columnDefaultValue}`;
                     } else {
                         columnLine += " ".repeat(
-                            longestColumnDefault + "DEFAULT".length,
+                            longestColumnDefault + "DEFAULT ".length,
                         );
                     }
 
-                    schemaString += `  ${columnLine}\n`;
+                    schemaString += `${TAB}${columnLine}\n`;
                 },
             );
             schemaString += `${closeCurlyBracket}\n\n`;
         });
 
-        const commentDateGenerated = insertSpan(
+        const formattedCreatedOnComment = wrapSpanIfHTML(
+            `-- ${CREATED_ON_COMMENT}`,
             "comment",
-            `-- This file was generated on ${getFormattedDateTimeString(
-                new Date(),
-            )}.`,
-            fileType,
         );
 
-        let htmlHeader = "";
-        htmlHeader += `<!-- ${commentDateGenerated}. -->\n`;
-        htmlHeader += `<!-- This file is best viewed in a browser -->\n\n`;
-        htmlHeader += `<!DOCTYPE html>\n<html data-theme="light">\n<head>\n\t`;
-        htmlHeader += getHTMLStyles();
-        htmlHeader += getScript();
-        htmlHeader += '\n</head>\n<body><pre class="pre">\n\n';
-        htmlHeader += `${commentDateGenerated}\n\n`;
+        const prettyPostgresLink = wrapElement("pretty-postgres", "a", {
+            href: "https://github.com/atul-jalan/pretty-postgres",
+            class: "link",
+            target: "_blank",
+        });
 
-        const txtHeader = commentDateGenerated + "\n\n";
+        const formattedAttributionComment = wrapSpanIfHTML(
+            `-- Made with ${prettyPostgresLink}.`,
+            "comment",
+        );
 
-        let htmlFooter = "";
-        htmlFooter += `
-        <button
-            type="button"
-            data-theme-toggle
-            aria-label="Change color theme"
-            style="position: absolute; top: 16px; right: 16px; border-style: none; border-radius: 2px; background-color: var(--color-comment); color: var(--color-backgroundColor); padding: 8px; padding-left: 16px; padding-right: 16px; cursor: pointer;"
-        >Toggle theme</button>`;
-        htmlFooter += "</pre></body></html>";
+        const htmlPre = wrapElement(
+            `${formattedCreatedOnComment}\n${formattedAttributionComment}\n\n` +
+                schemaString +
+                toggleThemeButton,
+            "pre",
+            { class: "pre" },
+        );
 
-        const htmlString = htmlHeader + schemaString + htmlFooter;
+        const htmlHead = wrapElement(getHTMLStyles() + getScript(), "head");
+        const htmlBody = wrapElement(htmlPre, "body");
 
-        const txtString = txtHeader + schemaString;
+        const htmlContent = wrapElement(htmlHead + htmlBody, "html", {
+            "data-theme": "light",
+        });
+
+        const htmlHeader = `<!-- This file is best viewed in a browser! -->\n<!-- ${CREATED_ON_COMMENT} -->\n<!-- Made with pretty-postgres: https://github.com/atul-jalan/pretty-postgres -->\n\n<!DOCTYPE html>\n`;
+        const htmlString = htmlHeader + htmlContent;
+
+        const txtString =
+            formattedCreatedOnComment +
+            "\n" +
+            "-- Made with pretty-postgres: https://github.com/atul-jalan/pretty-postgres" +
+            "\n\n" +
+            "-- Note: A '?' after a column name indicates that the column is nullable." +
+            "\n\n" +
+            schemaString;
 
         fs.writeFileSync(
             `${filename}.${fileType}`,
@@ -383,6 +385,13 @@ async function generate(
     } finally {
         client.release();
         await pool.end();
+        console.log("\nDone!");
+        if (fileType === "html") {
+            console.log(
+                "Open the generated file in a browser to view the schema with the following terminal command:",
+            );
+            console.log("open " + filename + ".html");
+        }
     }
     return;
 }
