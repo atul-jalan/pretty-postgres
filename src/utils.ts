@@ -7,6 +7,7 @@ const COLOR = {
         tableName: "#805AD5",
         columnName: "#1A202C",
         columnProperty: "#DD6B21",
+        columnPropertyReference: "#319795",
         columnType: "#805AD5",
         punctuation: "#393A34",
         text: "#1A202C",
@@ -19,6 +20,7 @@ const COLOR = {
         tableName: "#9F83DF",
         columnName: "#E2E8F0",
         columnProperty: "#E68F57",
+        columnPropertyReference: "#4FC6C3",
         columnType: "#9F83DF",
         punctuation: "#A0AEC0",
         text: "#E2E8F0",
@@ -92,6 +94,9 @@ function getHTMLStyles() {
     .columnProperty {
         color: var(--color-columnProperty);
     }
+    .columnPropertyReference {
+        color: var(--color-columnPropertyReference);
+    }
     .punctuation {
         color: var(--color-punctuation);
     }
@@ -111,10 +116,15 @@ function getHTMLStyles() {
         overflow: auto;
         padding: 16px;
     }
+    .hoverable {
+        text-decoration: underline;
+        text-decoration-style: dotted;
+    }
 
     html, body, pre {
         margin: 0;
         font-family: monospace;
+        line-height: 20px;
     }
 
     [data-tooltip] {

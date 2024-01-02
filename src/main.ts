@@ -11,7 +11,7 @@ import {
     wrapElement,
     wrapSpan,
 } from "./utils.js";
-import { columnsQuery, enumsQuery } from "./queries.js";
+import { type ColumnQueryResult, columnsQuery, enumsQuery } from "./queries.js";
 
 type FileType = "txt" | "html";
 
@@ -134,6 +134,8 @@ async function generate(
 
     const openCurlyBracket = wrapSpanIfHTML("{", "punctuation");
     const closeCurlyBracket = wrapSpanIfHTML("}", "punctuation");
+    const openParens = wrapSpanIfHTML("(", "punctuation");
+    const closeParens = wrapSpanIfHTML(")", "punctuation");
 
     const pool = new pg.Pool({
         connectionString: connectionString,
@@ -184,7 +186,16 @@ async function generate(
         });
 
         // Process columns with default values
-        let schema: Record<string, any> = {};
+        let schema: Record<
+            string,
+            Array<
+                ColumnQueryResult & {
+                    type:
+                        | ColumnQueryResult["udt_name"]
+                        | ColumnQueryResult["data_type"];
+                }
+            >
+        > = {};
         columns
             .sort((a, b) => {
                 if (a.is_nullable === "YES" && b.is_nullable === "NO") {
@@ -194,30 +205,21 @@ async function generate(
                 }
                 return 0;
             })
-            .forEach(
-                ({
-                    table_name,
-                    column_name,
-                    data_type,
-                    udt_name,
-                    column_default,
-                    is_nullable,
-                }) => {
-                    if (!schema[table_name]) {
-                        schema[table_name] = [];
-                    }
+            .forEach((column) => {
+                if (!schema[column.table_name]) {
+                    schema[column.table_name] = [];
+                }
 
-                    const type =
-                        data_type === ENUM_DATA_TYPE ? udt_name : data_type;
+                const type =
+                    column.data_type === ENUM_DATA_TYPE
+                        ? column.udt_name
+                        : column.data_type;
 
-                    schema[table_name].push({
-                        column_name,
-                        type,
-                        column_default,
-                        is_nullable,
-                    });
-                },
-            );
+                schema[column.table_name].push({
+                    ...column,
+                    type,
+                });
+            });
 
         // Determine the longest column name and type for formatting
         let longestColumnName = 0;
@@ -225,17 +227,7 @@ async function generate(
         let longestColumnDefault = 0;
         for (const table of Object.values(schema)) {
             table.forEach(
-                ({
-                    column_name,
-                    type,
-                    column_default,
-                    is_nullable,
-                }: {
-                    column_name: string;
-                    type: string;
-                    column_default: string | null;
-                    is_nullable: string;
-                }) => {
+                ({ column_name, type, column_default, is_nullable }) => {
                     // If the column is nullable, add 1 to the length for the
                     // question mark.
                     const nullable = is_nullable === "YES";
@@ -275,11 +267,10 @@ async function generate(
                     type,
                     column_default,
                     is_nullable,
-                }: {
-                    column_name: string;
-                    type: string;
-                    column_default: string;
-                    is_nullable: string;
+                    foreign_key_table,
+                    foreign_key_column,
+                    foreign_key_delete_rule,
+                    foreign_key_update_rule,
                 }) => {
                     const nullable = is_nullable === "YES";
 
@@ -322,11 +313,55 @@ async function generate(
                             "text",
                         );
 
-                        columnLine += `${columnDefault} ${columnDefaultValue}`;
-                    } else {
-                        columnLine += " ".repeat(
-                            longestColumnDefault + "DEFAULT ".length,
+                        columnLine += `${columnDefault} ${columnDefaultValue} `;
+                    }
+                    if (foreign_key_table && foreign_key_column) {
+                        const columnReference = wrapSpanIfHTML(
+                            "REFERENCES",
+                            "columnProperty",
                         );
+                        const foreignKeyTable = wrapSpanIfHTML(
+                            foreign_key_table,
+                            "tableName",
+                        );
+                        const foreignIdColumn = wrapSpanIfHTML(
+                            foreign_key_column,
+                            "text",
+                        );
+
+                        columnLine += `${columnReference} ${foreignKeyTable}${openParens}${foreignIdColumn}${closeParens} `;
+                    }
+                    if (
+                        foreign_key_delete_rule &&
+                        foreign_key_delete_rule !== "NO ACTION"
+                    ) {
+                        const columnDelete = wrapSpanIfHTML(
+                            "ON DELETE",
+                            "columnProperty",
+                        );
+
+                        const columnDeleteValue = wrapSpanIfHTML(
+                            foreign_key_delete_rule,
+                            "text",
+                        );
+
+                        columnLine += `${columnDelete} ${columnDeleteValue} `;
+                    }
+                    if (
+                        foreign_key_update_rule &&
+                        foreign_key_update_rule !== "NO ACTION"
+                    ) {
+                        const columnUpdate = wrapSpanIfHTML(
+                            "ON UPDATE",
+                            "columnProperty",
+                        );
+
+                        const columnUpdateValue = wrapSpanIfHTML(
+                            foreign_key_update_rule,
+                            "text",
+                        );
+
+                        columnLine += `${columnUpdate} ${columnUpdateValue} `;
                     }
 
                     schemaString += `${TAB}${columnLine}\n`;

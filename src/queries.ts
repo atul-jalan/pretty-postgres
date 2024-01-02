@@ -86,3 +86,4 @@ async function enumsQuery(client: pg.PoolClient) {
 }
 
 export { columnsQuery, enumsQuery };
+export type { ColumnQueryResult, EnumQueryResult };
