@@ -1,7 +1,7 @@
 {
     "name": "pretty-postgres",
     "version": "1.2.0",
-    "description": "Generate beautiful, readable PostgreSQL schemas.",
+    "description": "Generate beautiful, powerful PostgreSQL schema visualizations.",
     "author": "Atul Jalan atuljalan17@gmail.com",
     "license": "MIT",
     "bin": {
